@@ -1,37 +1,37 @@
 # Enterprise Backend & Automation Engine
 
-FastAPI tabanlı; görev yönetimi, BI raporlama, belge işleme, RAG bilgi bankası ve güvenli webhook otomasyonunu tek bir production-oriented serviste birleştiren sistem.
+Production-oriented FastAPI service that combines task management, business intelligence reporting, document processing, RAG knowledge retrieval, and secure webhook automation.
 
-## Mimari
+## Architecture
 
 ```text
 API endpoints → Core (security/config/logging) → Services → Async SQLAlchemy → PostgreSQL
                                                      └──── Celery + Redis
 ```
 
-| Alan | Sağlanan özellik |
+| Domain | Included capability |
 |---|---|
-| Task & Workflow | JWT, Argon2 parola hashleme, RBAC, sahiplik, filtreleme, sayfalama ve tanımlanabilir workflow kaynakları |
-| BI | Pandas analizi, ReportLab PDF ve Celery Beat ile günlük cron raporu |
-| Document | PDF/DOCX/TXT doğrulama, boyut sınırı, metin/meta veri ayıklama |
-| RAG | Veritabanı tabanlı bağlam getirme ve Google Gemini yanıt üretimi |
-| Webhook | HMAC-SHA256, idempotency key ve asenkron dış bildirim |
+| Task & Workflow | JWT, Argon2 password hashing, RBAC, ownership, filtering, pagination, and configurable workflows |
+| BI | Pandas analysis, ReportLab PDF generation, and a daily Celery Beat cron report |
+| Document | PDF/DOCX/TXT validation, upload-size limits, and text/metadata extraction |
+| RAG | Database-backed context retrieval and Google Gemini answer generation |
+| Webhook | HMAC-SHA256 verification, idempotency keys, and asynchronous outbound notifications |
 
-## Docker ile çalıştırma
+## Run with Docker
 
-1. `.env.example` dosyasını `.env` olarak kopyalayın ve sırları değiştirin.
-2. Başlatın:
+1. Copy `.env.example` to `.env` and replace the placeholder secrets.
+2. Start the stack:
 
 ```bash
 docker compose up --build
 ```
 
-Swagger arayüzü: `http://localhost:8000/docs`  
-Sağlık kontrolü: `http://localhost:8000/health`
+Swagger UI: `http://localhost:8000/docs`
+Health check: `http://localhost:8000/health`
 
-Stack; API, Celery worker, Celery Beat, PostgreSQL ve Redis servislerini içerir. Upload ve rapor klasörleri hosta bağlanır.
+The stack includes the API, Celery worker, Celery Beat scheduler, PostgreSQL, and Redis. Upload and report directories are mounted to the host.
 
-## Yerel geliştirme
+## Local development
 
 ```bash
 python -m venv .venv
@@ -42,29 +42,29 @@ uvicorn app.main:app --reload
 pytest
 ```
 
-Worker'ları yerelde ayrıca başlatmak için:
+To start background workers locally:
 
 ```bash
 celery -A app.workers.celery_app worker --loglevel=INFO
 celery -A app.workers.celery_app beat --loglevel=INFO
 ```
 
-## API akışı
+## API quick start
 
-1. `POST /api/v1/auth/register` ile kullanıcı oluşturun.
-2. `POST /api/v1/auth/login` OAuth2 form verisi kullanır (`username` alanı e-postadır).
-3. Korunan rotalara `Authorization: Bearer <token>` ekleyin.
-4. Görev rotaları: `/api/v1/tasks`; üyeler sadece kendi görevlerini görür. Yönetici/manager rolü `/api/v1/workflows` üzerinden workflow tanımı oluşturabilir.
-5. Belge yükleyin: `POST /api/v1/documents`; sonra `POST /api/v1/knowledge/ask` çağırın.
-6. Yönetici/manager kullanıcılar `POST /api/v1/reports` ile PDF işini kuyruğa alır.
+1. Create a user with `POST /api/v1/auth/register`.
+2. Sign in with `POST /api/v1/auth/login`, using OAuth2 form data (`username` is the email address).
+3. Send `Authorization: Bearer <token>` with protected requests.
+4. Use `/api/v1/tasks` for task management. Members can view only their own tasks. Admins and managers can create workflows through `/api/v1/workflows`.
+5. Upload a document through `POST /api/v1/documents`, then ask questions with `POST /api/v1/knowledge/ask`.
+6. Admins and managers can queue a PDF report through `POST /api/v1/reports`.
 
-## Webhook güvenliği
+## Webhook security
 
-Ham gövdeyi `HMAC-SHA256(WEBHOOK_SECRET, raw_body)` ile imzalayın ve hexadecimal sonucu `X-Signature` başlığında gönderin. Her istekte benzersiz `Idempotency-Key` gerekir. Hedef rota `POST /api/v1/webhooks/{event_type}`; tekrar eden anahtarlar yeniden işlenmez.
+Sign the raw request body with `HMAC-SHA256(WEBHOOK_SECRET, raw_body)` and place the hexadecimal digest in the `X-Signature` header. Every request requires a unique `Idempotency-Key`. Send requests to `POST /api/v1/webhooks/{event_type}`; duplicate keys are acknowledged but never processed again.
 
-## Üretim notları
+## Production notes
 
-- Sırları secret manager üzerinden yönetin; TLS, sınırlı CORS ve Alembic migration kullanın.
-- Büyük ölçekli yüklemelerde object storage ve antivirüs taraması ekleyin.
-- `GEMINI_API_KEY` ayarlandığında Gemini devreye girer; aksi halde güvenli bağlam fallback'i döner.
-- Loglar merkezi toplanmaya uygun JSON biçiminde stdout'a yazılır.
+- Manage secrets with a secret manager, terminate TLS at the edge, restrict CORS, and run Alembic migrations as part of deployment.
+- Add object storage and antivirus scanning before accepting untrusted documents at scale.
+- Set `GEMINI_API_KEY` to enable Gemini; otherwise, the service returns a safe context fallback.
+- Structured JSON logs are written to stdout for centralized log aggregation.
